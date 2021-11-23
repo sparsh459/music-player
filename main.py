@@ -3,13 +3,13 @@ import pygame  # for playing music selected
 from tkinter import filedialog # to search in system for song to add
 import time # to get current time of the song 
 from mutagen.mp3 import MP3  # to get complete length of the song
-
+import tkinter.ttk as ttk  # for slide bar
 
 # initialize tkinter window
 root = Tk()
 root.title("Music Player")
 root.iconbitmap(bitmap=r'C:\Users\Sony\PycharmProjects\pythonProject\Frameworks of python\tkinter_projects\music player\icon.ico')
-root.geometry("500x450")
+root.geometry("600x400")
 
 # initialize pygame
 pygame.mixer.init()
@@ -17,8 +17,14 @@ pygame.mixer.init()
 
 # creating function to get length of the song
 def play_time():
+    # sometimes slider moves faster so we terminate the funcion
+    if stopped:
+        return
     # getting the current time
     current_time = pygame.mixer.music.get_pos() / 1000
+
+    # throw up temp label to get data   # to check whether the slide and son position are same 
+    # slider_label.config(text=f'Slider: {int(my_slider.get())} and Song Pos: {int(current_time)}')
 
     # converting the time(in seconds) we get into time format
     converted_current_time = time.strftime('%H:%M:%S', time.gmtime(current_time))
@@ -32,17 +38,66 @@ def play_time():
     
     # loading the song
     song_mut = MP3(song)
+    global song_length
     # get song length with mutagen
     song_length = song_mut.info.length  # we get that in seconds
     # converting the time(in seconds) we get into time format
     converted_song_length = time.strftime('%H:%M:%S', time.gmtime(song_length))
 
 
-    # putting the current time on status bar
-    status_bar.config(text=f'Time elapsed:{converted_current_time} of {converted_song_length}')
+    # increase current time by 1
+    current_time+=1
+
+    # if the song is finished we need to stop teh timer in the status bar
+    if int(my_slider.get()) == int(song_length):
+        # teh song timer stops 1 sec before teh song length so we replaced converted_current_time to converted_song_length to compensate for that 1 sec
+        status_bar.config(text=f'Time Elapsed: {converted_song_length}  of  {converted_song_length}  ')
+    
+    # doing this so that teh slider get paused when the pause button is clicked
+    elif Pause:
+        pass
+    
+    # slider hasen't been moved
+    elif int(my_slider.get()) == int(song_length):   
+        # syncing the slider psotion and current time
+        # updating slider position when song plays and also slider goes to origial position when new song is selected
+        slider_position = int(song_length)	
+        my_slider.config(to=slider_position, value=int(current_time))
+    
+    # slider has been moved
+    else:       
+        slider_position = int(song_length)	
+        my_slider.config(to=slider_position, value=int(my_slider.get()))
+        # converting the slider position we get into time format
+        converted_current_time = time.strftime('%H:%M:%S', time.gmtime(int(my_slider.get())))
+        # now we have to update status bar
+        # putting the current time on status bar
+        status_bar.config(text=f'Time elapsed:{converted_current_time} of {converted_song_length}')
+
+        # moving the slider along with new postion attained
+        next_time = int(my_slider.get()) + 1
+        my_slider.config(value=next_time)
+        
+
+    # updating slider postion value to current song position
+    # my_slider.config(value=current_time)   # commenint this out beacuse it was updting the slider to position 0 
 
     # calling back the function every 1 sec 
     status_bar.after(1000, play_time)
+
+# creating slider function
+def slide(x):
+    # slider_label.config(text=f'{int(my_slider.get())} in {int(song_length)}')  # this was just used for testing purposes
+
+    # loads the active song and plays it
+    song = song_box.get(ACTIVE)
+    # sine path and mp3 have been stripped off we have to add them back to play the song
+    song = f"D:/sangeet/{song}.mp3"
+    # loading and playing music
+    pygame.mixer.music.load(song)
+    pygame.mixer.music.play(loops=0, start=int(my_slider.get()))
+
+    # for updating slider position when song plays, we go to pla function
 
 #add single song function
 def add_song():
@@ -70,6 +125,7 @@ def add_many_song():
 	
 # delete a song from listbox
 def delete_song():
+    # calling the stop function which will reset the slider and  status bar
     stop()
     # every time a song has been highlighted it's been anchored, it's an anchor song
     # deleting the currently selected song
@@ -79,6 +135,7 @@ def delete_song():
 
 # delete many songs from listbox
 def delete_many_song():
+    # calling the stop function which will reset the slider and  status bar
     stop()
     # deleting all the songs from the listbox
     song_box.delete(0, END)
@@ -88,6 +145,9 @@ def delete_many_song():
 
 # playing song
 def play():
+    # setting stopped to False so song can play and slider can move
+    global stopped
+    stopped = False
     song = song_box.get(ACTIVE)
     # sine path and mp3 have been stripped off we have to add them back to play the song
     song = f"D:/sangeet/{song}.mp3"
@@ -98,13 +158,30 @@ def play():
     # calling the palytime function to get song length
     play_time()
 
+    # below is giving a problem since slider is lagging by 1 sec to teh current time of song that's why we move below statements to play_time funvtion
+    # updating slider position when song plays and also slider goes to origial position when new son is selected
+    # slider_position = int(song_length)	
+    # my_slider.config(to=slider_position, value=0)
+
+    # to get the current volume value
+    # current_volume = pygame.mixer.music.get_volume()
+    # slider_label.config(text=current_volume*100)
+
 # stopping the music
+global stopped
+stopped = False
 def stop():
+    # updating slider and staus bar when stopped is pressed
+    status_bar.config(text='')
+    my_slider.config(value=0)
+
+    # stopping the music
     pygame.mixer.music.stop()
     song_box.selection_clear(ACTIVE)
 
-    # clearing the status bar
-    status_bar.config(text='')
+    #setting a global stopped variable to True
+    global stopped
+    stopped = True
 
 # creating global pause
 global Pause
@@ -126,6 +203,10 @@ def pause(is_paused):
 
 # playing next song
 def next_song():
+    # updating slider and staus bar when next is pressed
+    status_bar.config(text='')
+    my_slider.config(value=0)
+
     # getting the index of teh current song
     next_one = song_box.curselection() # this returns a tuple of indexes
     # print(next_one)
@@ -152,6 +233,10 @@ def next_song():
 
 # prev song || almost similar to the next_song function
 def prev_song():
+    # updating slider and staus bar when prev is pressed
+    status_bar.config(text='')
+    my_slider.config(value=0)
+
     prev_one = song_box.curselection()
     prev_one = prev_one[0] - 1
     song = song_box.get(prev_one)
@@ -171,10 +256,21 @@ def prev_song():
     song_box.selection_set(prev_one, last=None)
 
 
+# creating a volume function
+def volume(x):
+    pygame.mixer.music.set_volume(vol_slider.get())
+
+    # to get the current volume value
+    # current_volume = pygame.mixer.music.get_volume()
+    # slider_label.config(text=current_volume*100)
+
+# creating master frame
+master_frame = Frame(root)
+master_frame.pack(pady=20)
 
 # creating playlistboc
-song_box = Listbox(root, bg="black", fg="green", width=60, selectbackground="gray", selectforeground="black")
-song_box.pack(pady=20)
+song_box = Listbox(master_frame, bg="black", fg="green", width=60, selectbackground="gray", selectforeground="black")
+song_box.grid(row=0, column=0)
 
 # define user control buttons images
 back_btn_img = PhotoImage(file=r'C:\Users\Sony\PycharmProjects\pythonProject\Frameworks of python\tkinter_projects\music player\img\back50.png')
@@ -184,8 +280,12 @@ pause_btn_img = PhotoImage(file=r'C:\Users\Sony\PycharmProjects\pythonProject\Fr
 stop_btn_img = PhotoImage(file=r'C:\Users\Sony\PycharmProjects\pythonProject\Frameworks of python\tkinter_projects\music player\img\stop50.png')
 
 # create user frame
-control_frame =Frame(root)
-control_frame.pack()
+control_frame =Frame(master_frame)
+control_frame.grid(row=1, column=0, pady=20)  # right underneath the playlist(LISTBOX)
+
+# Create Volume Label Frame
+volume_frame = LabelFrame(master_frame, text="Volume")
+volume_frame.grid(row=0, column=1, padx=20)
 
 # creating player control buttons
 back_btn = Button(control_frame, image=back_btn_img , borderwidth=0, command=prev_song)
@@ -224,5 +324,28 @@ delete_song_menu.add_command(label="Delete many song to playlist", command=delet
 status_bar = Label(root, text='', bd=1, relief=GROOVE, anchor=E)
 status_bar.pack(fill=X, side=BOTTOM, ipady=2)
 
+##### song slider below
+
+# creating music position slider 
+#                             [starting value, end value]
+#                                  [     /|\      ] 
+#                                  [      |       ] 
+#                                  [      |       ] 
+#                                  [      |       ]                [Current pos]       [increse length slider]
+my_slider = ttk.Scale(master_frame, from_=0, to=100, orient=HORIZONTAL, value=0, command=slide, length=360)
+my_slider.grid(row=2, column=0, pady=10)
+
+# creating a volume slider
+#                              [starting value, end value]
+#                                  [     /|\      ] 
+#                                  [      |       ] 
+#                                  [      |       ] 
+#                                  [      |       ]                [Current pos]       [increse length slider]
+vol_slider = ttk.Scale(volume_frame, from_=0, to=1, orient=VERTICAL, value=1, command=volume, length=125)
+vol_slider.pack(pady=10)
+
+# making temporary slider label
+# slider_label = Label(root, text=0)
+# slider_label.pack(pady=10)
 
 root.mainloop()
